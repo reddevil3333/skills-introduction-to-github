@@ -1,0 +1,379 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>🎯 Emoji Physics Shooter</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+            overflow: hidden;
+        }
+
+        .container {
+            background: rgba(255, 255, 255, 0.95);
+            border-radius: 20px;
+            padding: 30px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+            max-width: 95%;
+        }
+
+        h1 {
+            text-align: center;
+            color: #333;
+            margin-bottom: 20px;
+            font-size: 2.5em;
+            text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.1);
+        }
+
+        canvas {
+            border: 3px solid #333;
+            border-radius: 10px;
+            background: linear-gradient(to bottom, #87CEEB 0%, #E0F6FF 100%);
+            cursor: crosshair;
+            display: block;
+            box-shadow: inset 0 2px 10px rgba(0, 0, 0, 0.1);
+        }
+
+        .controls {
+            margin-top: 20px;
+            display: flex;
+            gap: 15px;
+            align-items: center;
+            flex-wrap: wrap;
+            justify-content: center;
+        }
+
+        .emoji-selector {
+            display: flex;
+            gap: 10px;
+        }
+
+        .emoji-btn {
+            font-size: 2em;
+            background: white;
+            border: 3px solid #ddd;
+            border-radius: 10px;
+            padding: 10px 15px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .emoji-btn:hover {
+            transform: scale(1.1);
+            border-color: #667eea;
+        }
+
+        .emoji-btn.active {
+            border-color: #667eea;
+            background: #e8eaff;
+            box-shadow: 0 0 15px rgba(102, 126, 234, 0.5);
+        }
+
+        button {
+            padding: 12px 24px;
+            font-size: 1em;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            background: #667eea;
+            color: white;
+            font-weight: bold;
+            transition: all 0.3s ease;
+        }
+
+        button:hover {
+            background: #5568d3;
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(102, 126, 234, 0.4);
+        }
+
+        .info {
+            margin-top: 15px;
+            text-align: center;
+            color: #555;
+            font-size: 0.95em;
+            line-height: 1.6;
+        }
+
+        .stats {
+            margin-top: 10px;
+            display: flex;
+            gap: 20px;
+            justify-content: center;
+            font-weight: bold;
+            color: #333;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🎯 Emoji Physics Shooter</h1>
+        <canvas id="gameCanvas" width="800" height="600"></canvas>
+        <div class="controls">
+            <div class="emoji-selector">
+                <button class="emoji-btn active" data-emoji="⚽">⚽</button>
+                <button class="emoji-btn" data-emoji="🏀">🏀</button>
+                <button class="emoji-btn" data-emoji="🎾">🎾</button>
+                <button class="emoji-btn" data-emoji="⚾">⚾</button>
+                <button class="emoji-btn" data-emoji="🎱">🎱</button>
+                <button class="emoji-btn" data-emoji="🏐">🏐</button>
+                <button class="emoji-btn" data-emoji="🎳">🎳</button>
+                <button class="emoji-btn" data-emoji="🌟">🌟</button>
+                <button class="emoji-btn" data-emoji="💎">💎</button>
+                <button class="emoji-btn" data-emoji="🔥">🔥</button>
+            </div>
+            <button id="clearBtn">Clear All</button>
+            <button id="gravityBtn">Toggle Gravity</button>
+        </div>
+        <div class="stats">
+            <div>Emojis: <span id="emojiCount">0</span></div>
+            <div>Gravity: <span id="gravityStatus">ON</span></div>
+        </div>
+        <div class="info">
+            <strong>How to play:</strong> Click and drag to aim, release to shoot!<br>
+            Longer drag = stronger shot. Select different emojis above.
+        </div>
+    </div>
+
+    <script>
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+
+        // Physics constants
+        const GRAVITY = 0.5;
+        const FRICTION = 0.99;
+        const BOUNCE_DAMPING = 0.7;
+        const MAX_POWER = 30;
+
+        // Game state
+        let emojis = [];
+        let selectedEmoji = '⚽';
+        let isDragging = false;
+        let dragStart = { x: 0, y: 0 };
+        let dragEnd = { x: 0, y: 0 };
+        let gravityEnabled = true;
+
+        // Emoji class with physics
+        class Emoji {
+            constructor(x, y, vx, vy, symbol) {
+                this.x = x;
+                this.y = y;
+                this.vx = vx;
+                this.vy = vy;
+                this.symbol = symbol;
+                this.size = 40;
+                this.rotation = 0;
+                this.rotationSpeed = (Math.random() - 0.5) * 0.2;
+            }
+
+            update() {
+                // Apply gravity
+                if (gravityEnabled) {
+                    this.vy += GRAVITY;
+                }
+
+                // Apply friction
+                this.vx *= FRICTION;
+                this.vy *= FRICTION;
+
+                // Update position
+                this.x += this.vx;
+                this.y += this.vy;
+
+                // Update rotation
+                this.rotation += this.rotationSpeed;
+
+                // Bounce off walls
+                if (this.x - this.size / 2 < 0) {
+                    this.x = this.size / 2;
+                    this.vx = Math.abs(this.vx) * BOUNCE_DAMPING;
+                    this.rotationSpeed *= -1;
+                }
+                if (this.x + this.size / 2 > canvas.width) {
+                    this.x = canvas.width - this.size / 2;
+                    this.vx = -Math.abs(this.vx) * BOUNCE_DAMPING;
+                    this.rotationSpeed *= -1;
+                }
+
+                // Bounce off floor and ceiling
+                if (this.y + this.size / 2 > canvas.height) {
+                    this.y = canvas.height - this.size / 2;
+                    this.vy = -Math.abs(this.vy) * BOUNCE_DAMPING;
+                    this.rotationSpeed *= -1;
+
+                    // Stop if moving very slowly
+                    if (Math.abs(this.vy) < 0.5 && Math.abs(this.vx) < 0.5) {
+                        this.vy = 0;
+                        this.vx *= 0.95;
+                    }
+                }
+                if (this.y - this.size / 2 < 0) {
+                    this.y = this.size / 2;
+                    this.vy = Math.abs(this.vy) * BOUNCE_DAMPING;
+                    this.rotationSpeed *= -1;
+                }
+            }
+
+            draw() {
+                ctx.save();
+                ctx.translate(this.x, this.y);
+                ctx.rotate(this.rotation);
+                ctx.font = `${this.size}px Arial`;
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'middle';
+                ctx.fillText(this.symbol, 0, 0);
+                ctx.restore();
+            }
+        }
+
+        // Mouse event handlers
+        canvas.addEventListener('mousedown', (e) => {
+            const rect = canvas.getBoundingClientRect();
+            dragStart.x = e.clientX - rect.left;
+            dragStart.y = e.clientY - rect.top;
+            isDragging = true;
+        });
+
+        canvas.addEventListener('mousemove', (e) => {
+            if (isDragging) {
+                const rect = canvas.getBoundingClientRect();
+                dragEnd.x = e.clientX - rect.left;
+                dragEnd.y = e.clientY - rect.top;
+            }
+        });
+
+        canvas.addEventListener('mouseup', (e) => {
+            if (isDragging) {
+                const rect = canvas.getBoundingClientRect();
+                dragEnd.x = e.clientX - rect.left;
+                dragEnd.y = e.clientY - rect.top;
+
+                // Calculate velocity based on drag distance
+                const dx = dragEnd.x - dragStart.x;
+                const dy = dragEnd.y - dragStart.y;
+                const distance = Math.sqrt(dx * dx + dy * dy);
+
+                // Limit maximum power
+                const power = Math.min(distance / 10, MAX_POWER);
+                const angle = Math.atan2(dy, dx);
+
+                const vx = Math.cos(angle) * power;
+                const vy = Math.sin(angle) * power;
+
+                // Create new emoji
+                emojis.push(new Emoji(dragStart.x, dragStart.y, vx, vy, selectedEmoji));
+                updateStats();
+
+                isDragging = false;
+            }
+        });
+
+        canvas.addEventListener('mouseleave', () => {
+            isDragging = false;
+        });
+
+        // Emoji selector
+        document.querySelectorAll('.emoji-btn').forEach(btn => {
+            btn.addEventListener('click', () => {
+                document.querySelectorAll('.emoji-btn').forEach(b => b.classList.remove('active'));
+                btn.classList.add('active');
+                selectedEmoji = btn.dataset.emoji;
+            });
+        });
+
+        // Clear button
+        document.getElementById('clearBtn').addEventListener('click', () => {
+            emojis = [];
+            updateStats();
+        });
+
+        // Gravity toggle
+        document.getElementById('gravityBtn').addEventListener('click', () => {
+            gravityEnabled = !gravityEnabled;
+            document.getElementById('gravityStatus').textContent = gravityEnabled ? 'ON' : 'OFF';
+        });
+
+        // Update stats
+        function updateStats() {
+            document.getElementById('emojiCount').textContent = emojis.length;
+        }
+
+        // Draw aim line
+        function drawAimLine() {
+            if (!isDragging) return;
+
+            const dx = dragEnd.x - dragStart.x;
+            const dy = dragEnd.y - dragStart.y;
+            const distance = Math.sqrt(dx * dx + dy * dy);
+            const power = Math.min(distance / 10, MAX_POWER);
+
+            // Draw line
+            ctx.strokeStyle = 'rgba(255, 0, 0, 0.6)';
+            ctx.lineWidth = 3;
+            ctx.setLineDash([5, 5]);
+            ctx.beginPath();
+            ctx.moveTo(dragStart.x, dragStart.y);
+            ctx.lineTo(dragEnd.x, dragEnd.y);
+            ctx.stroke();
+            ctx.setLineDash([]);
+
+            // Draw power indicator
+            ctx.fillStyle = 'rgba(255, 0, 0, 0.3)';
+            ctx.beginPath();
+            ctx.arc(dragStart.x, dragStart.y, power * 2, 0, Math.PI * 2);
+            ctx.fill();
+
+            // Draw start point
+            ctx.fillStyle = 'rgba(255, 0, 0, 0.8)';
+            ctx.beginPath();
+            ctx.arc(dragStart.x, dragStart.y, 5, 0, Math.PI * 2);
+            ctx.fill();
+
+            // Draw power text
+            ctx.fillStyle = '#333';
+            ctx.font = 'bold 16px Arial';
+            ctx.textAlign = 'center';
+            ctx.fillText(`Power: ${Math.round(power)}`, dragStart.x, dragStart.y - 40);
+        }
+
+        // Main game loop
+        function gameLoop() {
+            // Clear canvas
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            // Draw sky gradient (already set in CSS background)
+
+            // Draw ground
+            ctx.fillStyle = '#90EE90';
+            ctx.fillRect(0, canvas.height - 50, canvas.width, 50);
+
+            // Update and draw emojis
+            emojis.forEach(emoji => {
+                emoji.update();
+                emoji.draw();
+            });
+
+            // Draw aim line
+            drawAimLine();
+
+            requestAnimationFrame(gameLoop);
+        }
+
+        // Start game loop
+        gameLoop();
+    </script>
+</body>
+</html>
